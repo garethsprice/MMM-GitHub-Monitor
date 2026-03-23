@@ -152,6 +152,8 @@ module.exports = NodeHelper.create({
         avatar: pull.user ? pull.user.avatar_url : null,
         state: pull.state,
         draft: pull.draft || false,
+        comments: (pull.comments || 0) + (pull.review_comments || 0),
+        labels: (pull.labels || []).map(function (l) { return { name: l.name, color: l.color }; }),
         merged: pull.merged_at !== null,
         merged_at: pull.merged_at,
         base: pull.base ? pull.base.ref : null,

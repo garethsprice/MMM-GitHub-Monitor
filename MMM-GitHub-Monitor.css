@@ -59,6 +59,24 @@
   font-size: 0.7rem;
 }
 
+.gh-comments {
+  color: var(--color-text-dimmed, #666);
+}
+
+.gh-pr-labels {
+  padding: 2px 0 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gh-label {
+  font-size: 0.6rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .gh-stale-warning {
   border-left: 2px solid #F6955D;
   padding-left: 8px;
