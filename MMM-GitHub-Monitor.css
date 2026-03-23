@@ -59,6 +59,26 @@
   font-size: 0.7rem;
 }
 
+.gh-stale-warning {
+  border-left: 2px solid #F6955D;
+  padding-left: 8px;
+}
+
+.gh-stale-danger {
+  border-left: 2px solid #E9524E;
+  padding-left: 8px;
+}
+
+.gh-age-warning {
+  color: #F6955D;
+  font-weight: 400;
+}
+
+.gh-age-danger {
+  color: #E9524E;
+  font-weight: 400;
+}
+
 .gh-open {
   color: #D8ED75;
 }

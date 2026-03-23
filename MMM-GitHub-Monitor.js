@@ -6,6 +6,8 @@ Module.register('MMM-GitHub-Monitor', {
     maxItems: 10,
     showChecks: true,
     showReviews: true,
+    staleWarningDays: 3,
+    staleDangerDays: 7,
     repositories: [],
     baseURL: 'https://api.github.com',
   },
@@ -150,10 +152,25 @@ Module.register('MMM-GitHub-Monitor', {
     return wrapper;
   },
 
+  getAgeDays: function (isoString) {
+    if (!isoString) return 0;
+    return (Date.now() - new Date(isoString).getTime()) / 86400000;
+  },
+
   buildPullEl: function (pull, isNew) {
     var item = document.createElement('div');
     item.className = 'gh-pr-item' + (isNew ? ' gh-pr-new' : '');
     item.dataset.prKey = this.pullKey(pull);
+
+    // Age-based highlighting for open PRs
+    if (pull.state === 'open') {
+      var ageDays = this.getAgeDays(pull.created_at);
+      if (ageDays >= this.config.staleDangerDays) {
+        item.classList.add('gh-stale-danger');
+      } else if (ageDays >= this.config.staleWarningDays) {
+        item.classList.add('gh-stale-warning');
+      }
+    }
 
     // Title line with icon
     var titleLine = document.createElement('div');
@@ -226,6 +243,16 @@ Module.register('MMM-GitHub-Monitor', {
     }
     var timeSpan = '<span class="gh-pr-time" data-timestamp="' + timeValue + '">' + this.formatTime(timeValue) + '</span>';
     metaParts.push(timeSpan);
+
+    // Stale age indicator
+    if (pull.state === 'open') {
+      var staleAgeDays = Math.floor(this.getAgeDays(pull.created_at));
+      if (staleAgeDays >= this.config.staleWarningDays) {
+        var ageClass = staleAgeDays >= this.config.staleDangerDays ? 'gh-age-danger' : 'gh-age-warning';
+        metaParts.push('<span class="' + ageClass + '">' + staleAgeDays + 'd old</span>');
+      }
+    }
+
     meta.innerHTML = metaParts.join(' · ');
     item.appendChild(meta);
 
