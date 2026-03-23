@@ -8,6 +8,8 @@ Module.register('MMM-GitHub-Monitor', {
     showReviews: true,
     staleWarningDays: 3,
     staleDangerDays: 7,
+    showLabels: true,
+    showComments: true,
     repositories: [],
     baseURL: 'https://api.github.com',
   },
@@ -194,7 +196,7 @@ Module.register('MMM-GitHub-Monitor', {
     title.innerHTML = pull.title;
     titleLine.appendChild(title);
 
-    // Inline badges: checks and review status
+    // Inline badges: checks, review, comments
     var badges = document.createElement('span');
     badges.className = 'gh-pr-badges';
 
@@ -222,8 +224,30 @@ Module.register('MMM-GitHub-Monitor', {
       badges.appendChild(reviewIcon);
     }
 
+    if (this.config.showComments && pull.comments > 0) {
+      var commentBadge = document.createElement('span');
+      commentBadge.className = 'gh-badge gh-comments';
+      commentBadge.innerHTML = '<i class="fa fa-comment-o"></i> ' + pull.comments;
+      badges.appendChild(commentBadge);
+    }
+
     titleLine.appendChild(badges);
     item.appendChild(titleLine);
+
+    // Label pills
+    if (this.config.showLabels && pull.labels && pull.labels.length > 0) {
+      var labelsLine = document.createElement('div');
+      labelsLine.className = 'gh-pr-labels';
+      pull.labels.forEach(function (label) {
+        var pill = document.createElement('span');
+        pill.className = 'gh-label';
+        pill.style.backgroundColor = '#' + label.color;
+        pill.style.color = parseInt(label.color, 16) > 0x7fffff ? '#000' : '#fff';
+        pill.innerHTML = label.name;
+        labelsLine.appendChild(pill);
+      });
+      item.appendChild(labelsLine);
+    }
 
     // Meta line
     var meta = document.createElement('div');
