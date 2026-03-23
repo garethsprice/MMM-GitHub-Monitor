@@ -4,6 +4,8 @@ Module.register('MMM-GitHub-Monitor', {
     updateInterval: 1000 * 60 * 5,
     maxPullRequestTitleLength: 80,
     maxItems: 10,
+    showChecks: true,
+    showReviews: true,
     repositories: [],
     baseURL: 'https://api.github.com',
   },
@@ -159,7 +161,9 @@ Module.register('MMM-GitHub-Monitor', {
 
     var icon = document.createElement('span');
     icon.className = 'gh-pr-icon';
-    if (pull.merged) {
+    if (pull.draft) {
+      icon.innerHTML = '<i class="fa fa-pencil gh-draft"></i>';
+    } else if (pull.merged) {
       icon.innerHTML = '<i class="fa fa-check-circle gh-merged"></i>';
     } else if (pull.state === 'open') {
       icon.innerHTML = '<i class="fa fa-code-fork gh-open"></i>';
@@ -172,6 +176,36 @@ Module.register('MMM-GitHub-Monitor', {
     title.className = 'bright';
     title.innerHTML = pull.title;
     titleLine.appendChild(title);
+
+    // Inline badges: checks and review status
+    var badges = document.createElement('span');
+    badges.className = 'gh-pr-badges';
+
+    if (this.config.showChecks && pull.checksStatus) {
+      var checkIcon = document.createElement('span');
+      checkIcon.className = 'gh-badge';
+      if (pull.checksStatus === 'success') {
+        checkIcon.innerHTML = '<i class="fa fa-check gh-ci-pass"></i>';
+      } else if (pull.checksStatus === 'failure') {
+        checkIcon.innerHTML = '<i class="fa fa-times gh-ci-fail"></i>';
+      } else {
+        checkIcon.innerHTML = '<i class="fa fa-circle-o-notch gh-ci-pending"></i>';
+      }
+      badges.appendChild(checkIcon);
+    }
+
+    if (this.config.showReviews && pull.reviewStatus && pull.reviewStatus !== 'pending') {
+      var reviewIcon = document.createElement('span');
+      reviewIcon.className = 'gh-badge';
+      if (pull.reviewStatus === 'approved') {
+        reviewIcon.innerHTML = '<i class="fa fa-thumbs-up gh-review-approved"></i>';
+      } else {
+        reviewIcon.innerHTML = '<i class="fa fa-thumbs-down gh-review-changes"></i>';
+      }
+      badges.appendChild(reviewIcon);
+    }
+
+    titleLine.appendChild(badges);
     item.appendChild(titleLine);
 
     // Meta line

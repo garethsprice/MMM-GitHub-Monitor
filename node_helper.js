@@ -48,6 +48,11 @@ module.exports = NodeHelper.create({
       allPulls = allPulls.slice(0, config.maxItems);
     }
 
+    // Enrich visible open PRs with review and CI status
+    if (config.accessToken) {
+      await this.enrichPulls(allPulls, config.baseURL, headers);
+    }
+
     this.cache = allPulls;
     this.cacheExpiry = Date.now() + (config.updateInterval || 300000);
     this.sendSocketNotification("GITHUB_DATA_RESULT", allPulls);
@@ -55,35 +60,85 @@ module.exports = NodeHelper.create({
 
   fetchRepoPulls: async function (baseURL, repo, headers, maxTitleLength) {
     var pulls = [];
+    var repoFullName = repo.owner + "/" + repo.name;
     var repoName = repo.name;
     var perPage = repo.pulls.loadCount || 10;
 
     // Fetch open PRs
     var resOpen = await fetch(
-      baseURL + "/repos/" + repo.owner + "/" + repo.name +
+      baseURL + "/repos/" + repoFullName +
       "/pulls?state=open&sort=created&direction=desc&per_page=" + perPage,
       { headers: headers }
     );
     if (resOpen.ok) {
       var openPulls = await resOpen.json();
-      pulls = pulls.concat(this.mapPulls(openPulls, repoName, maxTitleLength));
+      pulls = pulls.concat(this.mapPulls(openPulls, repoFullName, repoName, maxTitleLength));
     }
 
     // Fetch recently closed/merged PRs
     var resClosed = await fetch(
-      baseURL + "/repos/" + repo.owner + "/" + repo.name +
+      baseURL + "/repos/" + repoFullName +
       "/pulls?state=closed&sort=updated&direction=desc&per_page=" + perPage,
       { headers: headers }
     );
     if (resClosed.ok) {
       var closedPulls = await resClosed.json();
-      pulls = pulls.concat(this.mapPulls(closedPulls, repoName, maxTitleLength));
+      pulls = pulls.concat(this.mapPulls(closedPulls, repoFullName, repoName, maxTitleLength));
     }
 
     return pulls;
   },
 
-  mapPulls: function (jsonPulls, repoName, maxTitleLength) {
+  enrichPulls: async function (pulls, baseURL, headers) {
+    var openPulls = pulls.filter(function (p) { return p.state === "open"; });
+    await Promise.all(openPulls.map(async function (pull) {
+      try {
+        // Review status
+        var resReviews = await fetch(
+          baseURL + "/repos/" + pull.repoFullName + "/pulls/" + pull.number + "/reviews",
+          { headers: headers }
+        );
+        if (resReviews.ok) {
+          var reviews = await resReviews.json();
+          var latestByUser = {};
+          reviews.forEach(function (r) {
+            if (r.state !== "COMMENTED" && r.state !== "PENDING") {
+              latestByUser[r.user.login] = r.state;
+            }
+          });
+          var states = Object.values(latestByUser);
+          if (states.indexOf("CHANGES_REQUESTED") >= 0) {
+            pull.reviewStatus = "changes_requested";
+          } else if (states.indexOf("APPROVED") >= 0) {
+            pull.reviewStatus = "approved";
+          } else {
+            pull.reviewStatus = "pending";
+          }
+        }
+
+        // CI checks status
+        if (pull.headSha) {
+          var resChecks = await fetch(
+            baseURL + "/repos/" + pull.repoFullName + "/commits/" + pull.headSha + "/check-runs?per_page=100",
+            { headers: headers }
+          );
+          if (resChecks.ok) {
+            var checksData = await resChecks.json();
+            var runs = checksData.check_runs || [];
+            if (runs.length > 0) {
+              var hasFailure = runs.some(function (r) { return r.conclusion === "failure" || r.conclusion === "timed_out"; });
+              var hasPending = runs.some(function (r) { return r.status !== "completed"; });
+              if (hasFailure) pull.checksStatus = "failure";
+              else if (hasPending) pull.checksStatus = "pending";
+              else pull.checksStatus = "success";
+            }
+          }
+        }
+      } catch (_) { /* skip enrichment errors */ }
+    }));
+  },
+
+  mapPulls: function (jsonPulls, repoFullName, repoName, maxTitleLength) {
     return jsonPulls.map(function (pull) {
       var title = pull.title;
       if (maxTitleLength && title.length > maxTitleLength) {
@@ -96,11 +151,16 @@ module.exports = NodeHelper.create({
         author: pull.user ? pull.user.login : "unknown",
         avatar: pull.user ? pull.user.avatar_url : null,
         state: pull.state,
+        draft: pull.draft || false,
         merged: pull.merged_at !== null,
         merged_at: pull.merged_at,
         base: pull.base ? pull.base.ref : null,
+        headSha: pull.head ? pull.head.sha : null,
         created_at: pull.created_at,
         updated_at: pull.updated_at,
+        repoFullName: repoFullName,
+        reviewStatus: null,
+        checksStatus: null,
         // Sort key: use merged_at for merged PRs, created_at for open
         sort_time: pull.merged_at || pull.created_at,
       };

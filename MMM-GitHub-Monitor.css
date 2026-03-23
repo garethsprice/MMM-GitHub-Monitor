@@ -48,6 +48,17 @@
   margin-right: 2px;
 }
 
+.gh-pr-badges {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.gh-badge {
+  font-size: 0.7rem;
+}
+
 .gh-open {
   color: #D8ED75;
 }
@@ -57,5 +68,29 @@
 }
 
 .gh-closed {
+  color: #E9524E;
+}
+
+.gh-draft {
+  color: #6B7280;
+}
+
+.gh-ci-pass {
+  color: #D8ED75;
+}
+
+.gh-ci-fail {
+  color: #E9524E;
+}
+
+.gh-ci-pending {
+  color: #F6955D;
+}
+
+.gh-review-approved {
+  color: #D8ED75;
+}
+
+.gh-review-changes {
   color: #E9524E;
 }
