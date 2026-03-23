@@ -48,6 +48,23 @@
   margin-right: 2px;
 }
 
+.gh-stats {
+  margin-left: 8px;
+  font-weight: 300;
+}
+
+.gh-stats-ok {
+  color: #D8ED75;
+}
+
+.gh-stats-warning {
+  color: #F6955D;
+}
+
+.gh-stats-danger {
+  color: #E9524E;
+}
+
 .gh-pr-badges {
   margin-left: auto;
   display: flex;

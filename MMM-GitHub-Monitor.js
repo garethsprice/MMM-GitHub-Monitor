@@ -10,6 +10,8 @@ Module.register('MMM-GitHub-Monitor', {
     staleDangerDays: 7,
     showLabels: true,
     showComments: true,
+    showStats: true,
+    filterAuthors: [],
     repositories: [],
     baseURL: 'https://api.github.com',
   },
@@ -24,6 +26,7 @@ Module.register('MMM-GitHub-Monitor', {
   start: function () {
     Log.log('Starting module: ' + this.name);
     this.pulls = [];
+    this.stats = null;
     this.loaded = false;
 
     if (this.config.accessToken) {
@@ -40,17 +43,36 @@ Module.register('MMM-GitHub-Monitor', {
   },
 
   getHeader: function () {
-    return '<i class="fa fa-github"></i> ' + (this.data.header || 'Pull Requests');
+    var header = '<i class="fa fa-github"></i> ' + (this.data.header || 'Pull Requests');
+    if (this.config.showStats && this.stats && this.stats.repoCount > 0) {
+      var avgPerRepo = this.stats.openCount / this.stats.repoCount;
+      var statsClass = 'gh-stats-ok';
+      if (avgPerRepo > 4) statsClass = 'gh-stats-danger';
+      else if (avgPerRepo > 2) statsClass = 'gh-stats-warning';
+      header += ' <span class="gh-stats xsmall ' + statsClass + '">' + this.stats.openCount + ' open across ' + this.stats.repoCount + ' repos</span>';
+    }
+    return header;
   },
 
   socketNotificationReceived: function (notification, payload) {
     if (notification === 'GITHUB_DATA_RESULT') {
+      var newPulls = payload.pulls || payload;
+      this.stats = payload.stats || null;
+
+      // Filter by author if configured
+      if (this.config.filterAuthors.length > 0) {
+        var authors = this.config.filterAuthors;
+        newPulls = newPulls.filter(function (p) {
+          return authors.indexOf(p.author) >= 0;
+        });
+      }
+
       if (!this.loaded) {
-        this.pulls = payload;
+        this.pulls = newPulls;
         this.loaded = true;
         this.updateDom(0);
       } else {
-        this.applyUpdate(payload);
+        this.applyUpdate(newPulls);
       }
     }
   },

@@ -43,6 +43,9 @@ module.exports = NodeHelper.create({
       return new Date(b.sort_time) - new Date(a.sort_time);
     });
 
+    // Compute summary stats before slicing
+    var stats = this.computeStats(allPulls);
+
     // Limit to maxItems
     if (config.maxItems) {
       allPulls = allPulls.slice(0, config.maxItems);
@@ -53,9 +56,10 @@ module.exports = NodeHelper.create({
       await this.enrichPulls(allPulls, config.baseURL, headers);
     }
 
-    this.cache = allPulls;
+    var result = { pulls: allPulls, stats: stats };
+    this.cache = result;
     this.cacheExpiry = Date.now() + (config.updateInterval || 300000);
-    this.sendSocketNotification("GITHUB_DATA_RESULT", allPulls);
+    this.sendSocketNotification("GITHUB_DATA_RESULT", result);
   },
 
   fetchRepoPulls: async function (baseURL, repo, headers, maxTitleLength) {
@@ -93,7 +97,6 @@ module.exports = NodeHelper.create({
     var openPulls = pulls.filter(function (p) { return p.state === "open"; });
     await Promise.all(openPulls.map(async function (pull) {
       try {
-        // Review status
         var resReviews = await fetch(
           baseURL + "/repos/" + pull.repoFullName + "/pulls/" + pull.number + "/reviews",
           { headers: headers }
@@ -115,8 +118,6 @@ module.exports = NodeHelper.create({
             pull.reviewStatus = "pending";
           }
         }
-
-        // CI checks status
         if (pull.headSha) {
           var resChecks = await fetch(
             baseURL + "/repos/" + pull.repoFullName + "/commits/" + pull.headSha + "/check-runs?per_page=100",
@@ -136,6 +137,18 @@ module.exports = NodeHelper.create({
         }
       } catch (_) { /* skip enrichment errors */ }
     }));
+  },
+
+  computeStats: function (pulls) {
+    var openCount = 0;
+    var repos = {};
+    pulls.forEach(function (p) {
+      if (p.state === "open") {
+        openCount++;
+        repos[p.repo] = true;
+      }
+    });
+    return { openCount: openCount, repoCount: Object.keys(repos).length };
   },
 
   mapPulls: function (jsonPulls, repoFullName, repoName, maxTitleLength) {
