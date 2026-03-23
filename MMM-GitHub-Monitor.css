@@ -1,7 +1,61 @@
-.gh-monitor td:not(:last-child) {
-  padding-right: 1em;
+.gh-monitor-feed {
+  text-align: left;
 }
 
-.gh-monitor td {
-  white-space: nowrap;
+.gh-pr-item {
+  padding: 4px 0;
+  transition: opacity 0.5s ease;
+}
+
+.gh-pr-item.gh-pr-new {
+  animation: ghSlideIn 0.6s ease forwards;
+}
+
+@keyframes ghSlideIn {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    max-height: 100px;
+    padding: 4px 0;
+    transform: translateY(0);
+  }
+}
+
+.gh-pr-title-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.gh-pr-icon {
+  flex-shrink: 0;
+}
+
+.gh-pr-meta {
+  padding: 1px 0 4px 20px;
+}
+
+.gh-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
+.gh-open {
+  color: #D8ED75;
+}
+
+.gh-merged {
+  color: #A3A3F7;
+}
+
+.gh-closed {
+  color: #E9524E;
 }

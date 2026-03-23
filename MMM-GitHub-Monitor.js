@@ -1,25 +1,10 @@
 Module.register('MMM-GitHub-Monitor', {
   defaults: {
-    updateInterval: 1000 * 60 * 10,
-    renderInterval: 1000 * 5,
-    maxPullRequestTitleLength: 100,
-    repositories: [
-      {
-        owner: 'fpfuetsch',
-        name: 'MMM-GitHub-Monitor',
-        pulls: {
-          display: true,
-          loadCount: 10,
-          displayCount: 2,
-          state: 'open',
-          head: '',
-          base: 'main',
-          sort: 'created',
-          direction: 'desc',
-        }
-      },
-    ],
-    sort: true,
+    accessToken: '',
+    updateInterval: 1000 * 60 * 5,
+    maxPullRequestTitleLength: 80,
+    maxItems: 10,
+    repositories: [],
     baseURL: 'https://api.github.com',
   },
 
@@ -32,124 +17,198 @@ Module.register('MMM-GitHub-Monitor', {
 
   start: function () {
     Log.log('Starting module: ' + this.name);
-    this.initState();
-    this.updateCycle();
-    setInterval(this.updateCycle, this.config.updateInterval);
-    setInterval(() => this.updateDom(), this.config.renderInterval);
-  },
+    this.pulls = [];
+    this.loaded = false;
 
-  initState: function () {
-    this.state = [];
-    for (let id = 0; id < this.config.repositories.length; id++) {
-      this.state[id] = 0;
+    if (this.config.accessToken) {
+      this.sendSocketNotification('FETCH_GITHUB_DATA', this.config);
+      var self = this;
+      setInterval(function () {
+        self.sendSocketNotification('FETCH_GITHUB_DATA', self.config);
+      }, this.config.updateInterval);
+      // Refresh relative timestamps every 30s
+      setInterval(function () {
+        self.refreshTimes();
+      }, 30000);
     }
   },
 
-  updateCycle: async function () {
-    this.ghData = [];
-    await this.updateData();
-    this.updateDom();
+  getHeader: function () {
+    return '<i class="fa fa-github"></i> ' + (this.data.header || 'Pull Requests');
   },
 
-  updateData: async function () {
-    for (let id = 0; id < this.config.repositories.length; id++) {
-      const repo = this.config.repositories[id];
-      const resBase = await fetch(`${this.config.baseURL}/repos/${repo.owner}/${repo.name}`)
-      if (resBase.ok) {
-        const jsonBase = await resBase.json();
-        const repoData = {
-          id: id,
-          title: `${repo.owner}/${repo.name}`,
-          stars: jsonBase.stargazers_count,
-          forks: jsonBase.forks_count,
-        }
-
-        if (repo.pulls && repo.pulls.display) {
-          const pullsConfig = {
-            state: repo.pulls.state || 'open',
-            head: repo.pulls.head,
-            base: repo.pulls.base,
-            sort: repo.pulls.sort || 'created',
-            direction: repo.pulls.direction || 'desc',
-          }
-          let params = [];
-          Object.keys(pullsConfig).forEach(key => {
-            if (pullsConfig[key]) {
-              params.push(`${key}=${pullsConfig[key]}`)
-            }
-          });
-          const resPulls = await fetch(`${this.config.baseURL}/repos/${repo.owner}/${repo.name}/pulls?${params.join('&')}`)
-          if (resPulls.ok) {
-            let jsonPulls = await resPulls.json();
-            if (repo.pulls.loadCount) {
-              jsonPulls = jsonPulls.slice(0, repo.pulls.loadCount);
-            }
-            if (this.config.maxPullRequestTitleLength) {
-              jsonPulls.forEach(pull => {
-                if (pull.title.length > this.config.maxPullRequestTitleLength) {
-                  pull.title = pull.title.substr(0, this.config.maxPullRequestTitleLength) + '...';
-                }
-              })
-            }
-            repoData.step = Math.min(repo.pulls.displayCount, jsonPulls.length);
-            repoData.pulls = jsonPulls;
-          }
-        }
-        this.ghData.push(repoData)
+  socketNotificationReceived: function (notification, payload) {
+    if (notification === 'GITHUB_DATA_RESULT') {
+      if (!this.loaded) {
+        this.pulls = payload;
+        this.loaded = true;
+        this.updateDom(0);
+      } else {
+        this.applyUpdate(payload);
       }
     }
-    if (this.config.sort) {
-      this.ghData.sort((r1, r2) => r1.title.localeCompare(r2.title));
+  },
+
+  // Build a unique key for a PR
+  pullKey: function (pull) {
+    return pull.repo + '#' + pull.number;
+  },
+
+  applyUpdate: function (newPulls) {
+    var container = document.querySelector('.MMM-GitHub-Monitor .gh-pr-list');
+    if (!container) {
+      this.pulls = newPulls;
+      this.updateDom(0);
+      return;
+    }
+
+    var oldKeys = {};
+    for (var i = 0; i < this.pulls.length; i++) {
+      oldKeys[this.pullKey(this.pulls[i])] = true;
+    }
+    var newKeys = {};
+    for (var j = 0; j < newPulls.length; j++) {
+      newKeys[this.pullKey(newPulls[j])] = true;
+    }
+
+    // Remove PRs no longer in the list
+    var existing = container.querySelectorAll('.gh-pr-item');
+    for (var k = existing.length - 1; k >= 0; k--) {
+      var key = existing[k].dataset.prKey;
+      if (!newKeys[key]) {
+        existing[k].remove();
+      }
+    }
+
+    // Insert new PRs at the correct position
+    for (var m = 0; m < newPulls.length; m++) {
+      var prKey = this.pullKey(newPulls[m]);
+      if (!oldKeys[prKey]) {
+        var el = this.buildPullEl(newPulls[m], true);
+        var existingItems = container.querySelectorAll('.gh-pr-item');
+        if (m < existingItems.length) {
+          container.insertBefore(el, existingItems[m]);
+        } else {
+          container.appendChild(el);
+        }
+      }
+    }
+
+    this.pulls = newPulls;
+    this.applyFade(container);
+  },
+
+  applyFade: function (container) {
+    var items = container.querySelectorAll('.gh-pr-item');
+    var total = items.length;
+    var fadeStart = total * 0.75;
+    for (var i = 0; i < total; i++) {
+      items[i].style.opacity = i >= fadeStart ? 1 - ((i - fadeStart) / (total - fadeStart)) : '';
+    }
+  },
+
+  refreshTimes: function () {
+    var els = document.querySelectorAll('.MMM-GitHub-Monitor .gh-pr-time');
+    for (var i = 0; i < els.length; i++) {
+      var ts = els[i].dataset.timestamp;
+      if (ts) {
+        els[i].innerHTML = this.formatTime(ts);
+      }
     }
   },
 
   getDom: function () {
-    let table = document.createElement('table');
-    table.classList.add('gh-monitor');
+    var wrapper = document.createElement('div');
+    wrapper.className = 'gh-monitor-feed';
 
-    this.ghData.forEach((repo) => {
-      let basicRow = document.createElement('tr');
-      basicRow.style.fontWeight = 'bold';
-      basicRow.style.paddingBottom = '0.5em';
+    if (!this.loaded) {
+      wrapper.innerHTML = '<span class="dimmed light small">Loading PRs...</span>';
+      return wrapper;
+    }
 
-      let title = document.createElement('td');
-      title.innerText = repo.title;
+    if (this.pulls.length === 0) {
+      wrapper.innerHTML = '<span class="dimmed light small">No pull requests.</span>';
+      return wrapper;
+    }
 
-      let stars = document.createElement('td');
-      stars.innerHTML = `<i class="fa fa-star"></i> ${repo.stars}`;
-      stars.style.textAlign = 'left';
+    var list = document.createElement('div');
+    list.className = 'gh-pr-list';
 
-      let forks = document.createElement('td');
-      forks.innerHTML = `<i class="fa fa-code-fork"></i> ${repo.forks}`;
-      forks.style.textAlign = 'left';
-
-      basicRow.append(title);
-      basicRow.append(stars);
-      basicRow.append(forks)
-      table.append(basicRow);
-
-      if (repo.pulls) {
-        const displayedPulls = [];
-        for (let i = 0; i < repo.step; i++) {
-          if (this.state[repo.id] + 1 < repo.pulls.length) {
-            displayedPulls.push(repo.pulls[this.state[repo.id] + 1])
-            this.state[repo.id]++;
-          } else {
-            displayedPulls.push(repo.pulls[0])
-            this.state[repo.id] = 0;
-          }
-        }
-        displayedPulls.forEach(pull => {
-          const pullRow = document.createElement('tr');
-          const pullEntry = document.createElement('td');
-          pullEntry.style.paddingLeft = '1em';
-          pullEntry.colSpan = 3;
-          pullEntry.innerText = `#${pull.number} ${pull.title}`;
-          pullRow.append(pullEntry);
-          table.append(pullRow);
-        });
+    for (var i = 0; i < this.pulls.length; i++) {
+      var el = this.buildPullEl(this.pulls[i], false);
+      // Apply fade to bottom 25%
+      var fadeStart = this.pulls.length * 0.75;
+      if (i >= fadeStart) {
+        el.style.opacity = 1 - ((i - fadeStart) / (this.pulls.length - fadeStart));
       }
-    })
-    return table;
-  }
+      list.appendChild(el);
+    }
+
+    wrapper.appendChild(list);
+    return wrapper;
+  },
+
+  buildPullEl: function (pull, isNew) {
+    var item = document.createElement('div');
+    item.className = 'gh-pr-item' + (isNew ? ' gh-pr-new' : '');
+    item.dataset.prKey = this.pullKey(pull);
+
+    // Title line with icon
+    var titleLine = document.createElement('div');
+    titleLine.className = 'gh-pr-title-line';
+
+    var icon = document.createElement('span');
+    icon.className = 'gh-pr-icon';
+    if (pull.merged) {
+      icon.innerHTML = '<i class="fa fa-check-circle gh-merged"></i>';
+    } else if (pull.state === 'open') {
+      icon.innerHTML = '<i class="fa fa-code-fork gh-open"></i>';
+    } else {
+      icon.innerHTML = '<i class="fa fa-times-circle gh-closed"></i>';
+    }
+    titleLine.appendChild(icon);
+
+    var title = document.createElement('span');
+    title.className = 'bright';
+    title.innerHTML = pull.title;
+    titleLine.appendChild(title);
+    item.appendChild(titleLine);
+
+    // Meta line
+    var meta = document.createElement('div');
+    meta.className = 'gh-pr-meta xsmall dimmed';
+    var authorHtml = '';
+    if (pull.avatar) {
+      authorHtml = '<img class="gh-avatar" src="' + pull.avatar + '&s=32" /> ';
+    }
+    authorHtml += pull.author;
+    var metaParts = [pull.repo, authorHtml];
+    var timeValue;
+    if (pull.merged && pull.base) {
+      metaParts.push('<i class="fa fa-arrow-right"></i> ' + pull.base);
+      timeValue = pull.merged_at;
+    } else {
+      timeValue = pull.created_at;
+    }
+    var timeSpan = '<span class="gh-pr-time" data-timestamp="' + timeValue + '">' + this.formatTime(timeValue) + '</span>';
+    metaParts.push(timeSpan);
+    meta.innerHTML = metaParts.join(' · ');
+    item.appendChild(meta);
+
+    return item;
+  },
+
+  formatTime: function (isoString) {
+    if (!isoString) return '';
+    var now = Date.now();
+    var then = new Date(isoString).getTime();
+    var diffMin = Math.floor((now - then) / 60000);
+
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return diffMin + ' min ago';
+    var diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return diffHr + ' hr ago';
+    var diffDay = Math.floor(diffHr / 24);
+    return diffDay + ' day' + (diffDay > 1 ? 's' : '') + ' ago';
+  },
 });
