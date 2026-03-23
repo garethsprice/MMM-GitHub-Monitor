@@ -1,5 +1,6 @@
 Module.register('MMM-GitHub-Monitor', {
   defaults: {
+    accessToken: '',
     updateInterval: 1000 * 60 * 10,
     renderInterval: 1000 * 5,
     maxPullRequestTitleLength: 100,
@@ -33,8 +34,19 @@ Module.register('MMM-GitHub-Monitor', {
   start: function () {
     Log.log('Starting module: ' + this.name);
     this.initState();
-    this.updateCycle();
-    setInterval(this.updateCycle, this.config.updateInterval);
+
+    if (this.config.accessToken) {
+      // Use node_helper for authenticated requests (keeps token server-side)
+      this.sendSocketNotification('FETCH_GITHUB_DATA', this.config);
+      var self = this;
+      setInterval(function () {
+        self.sendSocketNotification('FETCH_GITHUB_DATA', self.config);
+      }, this.config.updateInterval);
+    } else {
+      // Fall back to unauthenticated client-side fetch (public repos only)
+      this.updateCycle();
+      setInterval(this.updateCycle, this.config.updateInterval);
+    }
     setInterval(() => this.updateDom(), this.config.renderInterval);
   },
 
@@ -100,6 +112,13 @@ Module.register('MMM-GitHub-Monitor', {
     }
     if (this.config.sort) {
       this.ghData.sort((r1, r2) => r1.title.localeCompare(r2.title));
+    }
+  },
+
+  socketNotificationReceived: function (notification, payload) {
+    if (notification === 'GITHUB_DATA_RESULT') {
+      this.ghData = payload;
+      this.updateDom();
     }
   },
 
