@@ -1,6 +1,8 @@
 Module.register('MMM-GitHub-Monitor', {
   defaults: {
     accessToken: '',
+    showStars: true,
+    showForks: true,
     updateInterval: 1000 * 60 * 10,
     renderInterval: 1000 * 5,
     maxPullRequestTitleLength: 100,
@@ -134,17 +136,21 @@ Module.register('MMM-GitHub-Monitor', {
       let title = document.createElement('td');
       title.innerText = repo.title;
 
-      let stars = document.createElement('td');
-      stars.innerHTML = `<i class="fa fa-star"></i> ${repo.stars}`;
-      stars.style.textAlign = 'left';
-
-      let forks = document.createElement('td');
-      forks.innerHTML = `<i class="fa fa-code-fork"></i> ${repo.forks}`;
-      forks.style.textAlign = 'left';
-
       basicRow.append(title);
-      basicRow.append(stars);
-      basicRow.append(forks)
+
+      if (this.config.showStars) {
+        let stars = document.createElement('td');
+        stars.innerHTML = `<i class="fa fa-star"></i> ${repo.stars}`;
+        stars.style.textAlign = 'left';
+        basicRow.append(stars);
+      }
+
+      if (this.config.showForks) {
+        let forks = document.createElement('td');
+        forks.innerHTML = `<i class="fa fa-code-fork"></i> ${repo.forks}`;
+        forks.style.textAlign = 'left';
+        basicRow.append(forks);
+      }
       table.append(basicRow);
 
       if (repo.pulls) {
@@ -162,7 +168,7 @@ Module.register('MMM-GitHub-Monitor', {
           const pullRow = document.createElement('tr');
           const pullEntry = document.createElement('td');
           pullEntry.style.paddingLeft = '1em';
-          pullEntry.colSpan = 3;
+          pullEntry.colSpan = 1 + (this.config.showStars ? 1 : 0) + (this.config.showForks ? 1 : 0);
           pullEntry.innerText = `#${pull.number} ${pull.title}`;
           pullRow.append(pullEntry);
           table.append(pullRow);
