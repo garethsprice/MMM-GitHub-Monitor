@@ -135,7 +135,7 @@ module.exports = NodeHelper.create({
             }
           }
         }
-      } catch (_) { /* skip enrichment errors */ }
+      } catch (_err) { /* skip enrichment errors */ }
     }));
   },
 
