@@ -7,10 +7,17 @@ Display a live feed of pull requests across your GitHub repositories on your Mag
 ## Features
 
 - Unified chronological PR feed across multiple repositories
-- PR state icons: open, merged, closed
+- PR state icons: open, merged, closed, draft
 - Author GitHub avatars
 - Target branch shown for merged PRs (e.g. → main, → dev)
-- Relative timestamps that update dynamically
+- Review status badges (approved, changes requested)
+- CI/check run status badges (pass, fail, pending)
+- PR label pills with color
+- Comment count badges
+- Stale PR highlighting with configurable warning/danger thresholds
+- Summary stats header showing open PR count across repos
+- Author filtering to focus on specific contributors
+- Relative timestamps that update dynamically every 30 seconds
 - Incremental DOM updates — new PRs slide in without full re-render
 - Bottom fade effect matching MagicMirror conventions
 - Server-side API requests via node_helper (token never reaches the browser)
@@ -19,14 +26,23 @@ Display a live feed of pull requests across your GitHub repositories on your Mag
 
 ## Installation
 
-1. Navigate to the `/modules` folder of your MagicMirror²
-2. Clone this repository: `git clone https://github.com/fpfuetsch/MMM-GitHub-Monitor.git`
+```bash
+cd ~/MagicMirror/modules
+git clone https://github.com/garethsprice/MMM-GitHub-Monitor.git
+```
 
 No `npm install` needed — uses native Node.js fetch.
 
+## Update
+
+```bash
+cd ~/MagicMirror/modules/MMM-GitHub-Monitor
+git pull
+```
+
 ## Configuration
 
-Add the module to `config/config.js`:
+Add the module to the `modules` array in your `config/config.js`:
 
 ```javascript
 {
@@ -34,9 +50,7 @@ Add the module to `config/config.js`:
   position: "top_right",
   header: "Pull Requests",
   config: {
-    accessToken: "ghp_your_token_here",  // GitHub PAT with repo scope
-    maxItems: 12,
-    updateInterval: 300000,  // 5 minutes
+    accessToken: "ghp_your_token_here",
     repositories: [
       { owner: "your-org", name: "repo-1", pulls: { state: "open", loadCount: 5 } },
       { owner: "your-org", name: "repo-2", pulls: { state: "open", loadCount: 5 } },
@@ -55,6 +69,14 @@ Add the module to `config/config.js`:
 | `maxPullRequestTitleLength` | `80` | Truncate PR titles beyond this length |
 | `repositories` | `[]` | Array of repository configs (see below) |
 | `baseURL` | `https://api.github.com` | API base URL (for GitHub Enterprise) |
+| `showChecks` | `true` | Show CI/check run status badges on open PRs |
+| `showReviews` | `true` | Show review status badges on open PRs |
+| `showLabels` | `true` | Show PR label pills |
+| `showComments` | `true` | Show comment count badges |
+| `showStats` | `true` | Show summary stats in the header |
+| `staleWarningDays` | `3` | Days before an open PR gets a warning highlight |
+| `staleDangerDays` | `7` | Days before an open PR gets a danger highlight |
+| `filterAuthors` | `[]` | Only show PRs from these GitHub usernames (empty = show all) |
 
 ### Per-repository `pulls` options
 
@@ -72,7 +94,3 @@ When `accessToken` is set, all GitHub API requests are made server-side via `nod
 When no token is configured, the module is not functional for private repos and will be subject to GitHub's unauthenticated rate limit (60 requests/hour).
 
 Generate a Personal Access Token at https://github.com/settings/tokens with `repo` scope.
-
-## Update
-
-Navigate to the module folder and run `git pull`.
