@@ -1,0 +1,28 @@
+{
+  "name": "mmm-github-monitor",
+  "version": "1.0.0",
+  "description": "MagicMirror module to display a live feed of pull requests across GitHub repositories",
+  "main": "MMM-GitHub-Monitor.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/garethsprice/MMM-GitHub-Monitor"
+  },
+  "keywords": [
+    "MagicMirror",
+    "MagicMirror2",
+    "GitHub",
+    "pull-request",
+    "monitor",
+    "dashboard",
+    "smart-mirror"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0"
+  }
+}
